@@ -1,0 +1,289 @@
+# CMTY for Individuals
+
+## Requirements Exploration
+
+### What are the core features to be supported?
+
+- Privileges
+  - Browse Available privileges and received privileges.
+  - Ability to achieve a privilege by completing a quest.
+- Quests
+  - Browse quests feed containing quests by the brand.
+  - Joining and submitting a quest.
+- Show points.
+
+### What kind of quests are supported?
+
+Primarily text and image-based quests. But possible to support other types of quests (video or GIF) in the future.
+
+### What pagination UX should be used for the feed?
+
+Infinite scrolling, meaning more quests will be added when the user reaches the end of their feed.
+
+### Will the application be used on mobile devices?
+
+Yes, the application will be used on mobile devices. The application will be a web application, so it will be responsive.
+
+## Architecture/High-level Design
+
+import Image from 'next/image'
+
+<Image
+  src="/assets/images/quest-feed-hld.jpg"
+  alt="Image Carousel HLD"
+  width={600}
+  height={600}
+  style={{ marginTop: 20 }}
+/>
+
+### Component Responsibilities
+
+- Server: Provides HTTP APIs to fetch feed quests.
+- Controller: Controls the flow of data within the application and makes network requests to the server.
+- Client Store: Stores data needed across the whole application. In the context of a quests feed, most of the data in the store will be server-originated data needed by the feed UI.
+- Feed UI: Contains a list of feed quests.
+- Feed quest: Presents the data for a feed quest and contains button to interact with the quest (Join/Resume).
+
+## Data Model
+
+A quest feed shows a list of quests fetched from the server, hence most of the data involved in this application will be server-originated data.
+
+| Entity  | Source | Belongs To   | Fields                                                                                                       |
+| :------ | :----- | :----------- | :----------------------------------------------------------------------------------------------------------- |
+| `Feed`  | Server | Feed UI      | `quests` (list of `Quests`), pagination (pagination metadata)                                                |
+| `Quest` | Server | Feed Quest   | `_k` or `id`, `startsAt`, `title`, `coverImageUrl` (for quests containing images), `submitted`, `answerList` |
+| `Owner` | Server | Client Store | `ownerKey`, `name`, `profile_photo_url`, `balance`, `coinKey`                                                |
+
+Although the Quest and Feed entities belong to the feed quest and feed UI respectively, all server-originated data can be stored in the client store and queried by the components which need them.
+
+The shape of the client store is not particularly important here, as long as it is in a format that can be easily retrieved from the components. New quests fetched from the second page should be joined with the previous quests into a single list with the pagination parameters (`cursor`) updated.
+
+### Normalized Store (Optional)
+
+Normalized data stores:
+
+- Resemble databases where each type of data is stored in its own table.
+- Each item has a unique ID.
+- References across data types use IDs (like a foreign key) instead of having nested objects.
+
+The benefits of having a normalized store are:
+
+- Reduce duplicated data and have a source of truth for the same piece of data that could be presented in multiple instances on the UI. E.g. if quests have some info about the owner, we're storing duplicated data for the owner field in the client store.
+- Easily update all data for the same entity. In the scenario that the feed quest contains many quests authored by the owner and the owner changes their name, it'd be good to be able to immediately reflect the updated owner name in the quests. This will be easier to do with a normalized store than a store that just stores the server response as is in a nested structure.
+
+In the context of this product, we don't really need to use a normalized store because:
+
+- With the exception of the owner fields, there isn't much duplicated data.
+- Quests feed is mostly for consuming information, there aren't many use cases to update data.
+- Not many Feed user interactions.
+- Hence the upsides of using a normalized store is limited.
+
+## Interface Definition (API)
+
+| Source     | Destination | API Type   | Functionality             |
+| :--------- | :---------- | :--------- | :------------------------ |
+| Server     | Controller  | HTTP       | Fetch feed quests         |
+| Controller | Feed UI     | JavaScript | Transfer feed quests data |
+
+The HTTP API for fetching feed quests from the server has the basic details:
+
+| Field       | Value                                  |
+| :---------- | :------------------------------------- |
+| HTTP Method | `POST`                                 |
+| Path        | `/query/questListByOwner`              |
+| Description | Fetches the feed results for an owner. |
+
+There are two common ways to return paginated content, each with its own pros and cons.
+
+- Offset-based pagination
+- Cursor-based pagination
+
+### Offset-based Pagination
+
+An offset-based pagination API accepts the following parameters:
+
+| Parameter | Type   | Description                |
+| :-------- | :----- | :------------------------- |
+| `size`    | number | Number of results per page |
+| `page`    | number | Page number to fetch       |
+
+Advantage:
+
+Offset-based pagination has the following advantages:
+
+- Users can jump to a specific page.
+- Easy to see the total number of pages.
+- Easy to implement on the back end.
+
+Drawback:
+
+- For data that updates frequently, the current page window might be inaccurate after some time.
+- cannot change the page size for subsequent queries
+
+### Cursor-based Pagination
+
+A cursor-based pagination API accepts the following parameters:
+
+| Parameter | Type   | Description                                                                                 |
+| :-------- | :----- | :------------------------------------------------------------------------------------------ |
+| `size`    | number | Number of results per page                                                                  |
+| `cursor`  | string | An identifier for the last item fetched. The database will know to continue from this item. |
+
+Advantage:
+
+- Avoids the inaccurate page window problem because new quests added over time do not affect the offset, which is determined by a fixed cursor
+
+Drawback:
+
+- It's not possible to jump to specific pages with cursors.
+
+Cursor-based pagination is clearly superior to offset-based pagination and it's the most suitable for feed use cases.
+
+## Optimizations and Deep Dive
+
+### Feed Optimizations
+
+#### Rendering Approach
+
+- Server-side rendering (SSR): Rendering the HTML on the server side, which is the most traditional way. Best for static content that require SEO and does not require heavy user interaction. Websites like blogs, documentation sites, e-commerce websites are built using SSR.
+- Client-side rendering (CSR): Rendering in the browser, by dynamically adding DOM elements into the page using JavaScript. Best for interactive content. Applications like dashboards, chat apps are built using CSR.
+- Hybrid rendering: A combination of SSR and CSR. Best for content that requires SEO and heavy user interaction. Applications like social media feeds, e-commerce product pages are built using hybrid rendering.
+
+For this quest feed application, there's a good amount of static content but they also require some level of interaction. So, using a hybrid approach will give the best of both worlds: a fast initial load with SSR then hydrating the page to enable interactions. Subsequent content (e.g. more quests added once the user reaches the end of their feed) will be rendered via CSR.
+
+This can be achieved by using a hybrid framework like Next.js, which supports both SSR and CSR.
+
+#### Infinite Scrolling
+
+Infinite scrolling/feed works by fetching the next set of quests when the user has scrolled to the end of their current loaded feed. This results in the user seeing a loading indicator and a short delay where the user has to wait for the new quests to be fetched and displayed.
+
+A way to reduce or entirely eliminate the waiting time is to load the next set of feed quests before the user hits the bottom of the page so that the user never has to see any loading indicators. A trigger distance of around one viewport height should be sufficient for most cases. The ideal distance is short enough to avoid false positives and wasted bandwidth but also wide enough to load the rest of the contents before the user scrolls to the bottom of the page.
+
+A dynamic distance can be calculated based on the network connection speed and how fast the user is scrolling through the feed.
+
+##### Implementing Infinite Scrolling
+
+In both approaches, we add a marker element that is rendered at the bottom of the feed.
+
+- Add a `scroll` event listener (ideally debounced) to the page or a timer (via `setInterval`) that checks whether the position of the marker element is within a certain threshold from the bottom of the page. The position of the marker element can be obtained using `Element.getBoundingClientRect`.
+- Use the **Intersection Observer API** to monitor when the marker element is entering or exiting another element or intersecting by a specified amount.
+
+#### Virtualized Lists
+
+With infinite scrolling, all the loaded feed items are on one single page. As the user scrolls further down the page, more quests are appended to the DOM and with feed quests having complex DOM structure (lots of details to render), the DOM size rapidly increases. Over time, the feed items list can easily grow really long quickly, the number of feed items can be a cause of performance issues in terms of DOM size, rendering, and browser memory usage.
+
+Virtualized lists is a technique to render only the quests that are within the viewport. We can replace the contents of off-screen feed quests with empty `<div>`s, add dynamically calculated inline styles (e.g. `style="height: 300px"`) to set the height of the quests so as to preserve the scroll position and add the hidden attribute to them. This will improve rendering performance in terms of:
+
+- **Browser painting**: Fewer DOM nodes to render and fewer layout computations to be made.
+- **Virtual DOM reconciliation (React-specific)**: Since the quest is now a simpler empty version, it's easier for React (the UI library that Facebook is using to render the feed) to diff the virtual DOM vs the real DOM to determine what DOM updates have to be made.
+
+#### Code Splitting JavaScript for Faster Performance
+
+- **Split on the page level**: Each page will only load the JavaScript and CSS needed on that page.
+- **Lazy loading resources within a page**: Load non-critical resources only when needed or after the initial render, such as code that's only needed lower down on the page, or code that's used only when interacted with (e.g. modals, dialogs).
+
+#### Keyboard Shortcuts
+
+We can have a number of quest feed-specific shortcuts to help users navigate between the quests and perform common actions, super handy!
+
+#### Loading Indicators
+
+Rather than showing a spinner, a better experience would be to use a shimmer loading effect which resembles the contents of the quests. This looks more aesthetically pleasing and can be used also reduce layout shift after the new quests are loaded.
+
+#### Dynamic Loading Count
+
+For the initial load, we do not know the window height so we need to be conservative and overfetch the number of quests needed. But for subsequent fetches, we know the browser window height and can customize the number of quests to fetch based on that.
+
+#### Preserving Feed Scroll Position
+
+Feed scroll positions should be preserved if users navigate to another page and back to the feed. This can be achieved in SPAs if the feed quests are cached within the client store along with the scroll position and displayed with that scroll position when the user goes back to the feed page.
+
+#### Error States
+
+Clearly display error states if the list failed to fetch, or when there's no network connectivity.
+
+### Feed Quest Optimizations
+
+#### Delivering Data-driven Dependencies Only When Needed
+
+Feed quests can come in many different formats and require specialized rendering code but not all users will see all of them. One way to achieve this is to have the client load the component JavaScript code for all possible formats upfront so that any kind of feed quest format can be rendered. However, this will quickly bloat the page's JavaScript size and there will likely be a lot of unused JavaScript.
+
+We should load the relevant code when a particular format for a quest is being shown.
+
+This can be easily achieved with GraphQL
+
+#### Rendering Images
+
+Since there can be images in a feed quest, we can also briefly discuss some image optimization techniques:
+
+- Use a Content Delivery Network (CDN) to host and serve images for faster loading performance.
+- Use modern image formats such as WebP which provides superior lossless and lossy image compression.
+- `<img>`s should use proper alt text
+- Image loading based on device screen properties
+  - Use `srcset` if there are image processing (resizing) capabilities to load the most suitable image file for the current viewport.
+- Adaptive image loading based on network speed
+  - Devices with good internet connectivity/on WiFi: Prefetch offscreen images that are not in the viewport yet but about to enter viewport.
+  - Devices with poor internet connectivity/on mobile data: Render a low-resolution placeholder image and require users to explicitly click on them to load the high-resolution image.
+
+#### Lazy load code that is not needed for initial render
+
+#### Optimistic Updates
+
+#### Timestamp Rendering
+
+Timestamp rendering is a topic worth discussing because of a few issues: multilingual timestamps and stale relative timestamps.
+
+##### Multilingual Timestamps
+
+There are a few ways to support multilingual timestamps:
+
+- Server returns the raw timestamp and client renders in the user's language. This approach is flexible but requires the client to contain the grammar rules and translation strings for different languages, which can amount to significant JavaScript size depending on the number of supported languages,
+- Server returns the translated timestamp. This requires processing on the server, but you don't have to ship timestamp formatting rules for various languages to the client. However, you cannot update this timestamp on the client.
+- Modern browsers can leverage the `Intl.DateTimeFormat()` API to transform a raw timestamp into a translated datetime string.
+
+Example:
+
+```js
+console.log(
+  new Intl.DateTimeFormat('zh-CN', {
+    dateStyle: 'full',
+    timeStyle: 'long',
+  }).format(1687885200000)
+)
+```
+
+##### Relative Timestamps Can Become Stale
+
+If timestamps are displayed using a relative format (e.g. 10 hours to go, 1 hour to go, 20 mins to go, etc), recent timestamps can easily go stale especially for applications where users don't refresh the page. A timer can be used to constantly update the timestamps if they are recent (less than an hour remaining) such that any significant time that has passed will be reflected correctly.
+
+#### Icon Rendering
+
+Currently the Quest has only one icon. But assuming that there will probably be more icons we can choose one of the below approach:
+
+| Approach       | Pros                                          | Cons                                                                              |
+| :------------- | :-------------------------------------------- | :-------------------------------------------------------------------------------- |
+| Separate image | Simple to implement.                          | Multiple download requests per image.                                             |
+| Spritesheet    | One HTTP request to download all icon images. | Complicated to set up.                                                            |
+| Icon fonts     | Scalable and crisp.                           | Need to download the entire font. Flash of unstyled content when font is loading. |
+| SVG            | Scalable and crisp. Cacheable.                | Flickering when file is being downloaded. One download requests per image.        |
+| Inlined SVG    | Scalable and crisp.                           | Cannot be cached.                                                                 |
+
+Inlined SVG is the best approach for our use case. And that also seems to be the trend in the industry.
+
+#### Stale Feeds
+
+It's not uncommon for users to leave their quests feed application open as a browser tab and not refresh it at all. It'd be a good idea to prompt the user to refresh or refetch the feed if the last fetched timestamp is more than a few hours ago, i.e. feed is stale.
+
+#### User Experience
+
+- Truncate quests which have super long message content and reveal the rest behind a "See more" button.
+
+### Accessibility
+
+- Feed
+  - Add `role="feed"` to the feed HTML element.
+- Feed Quests
+  - Add `role="article"` to each feed quest HTML element.
+  - `aria-labelledby="<id>"` where the HTML tag containing the feed owner name has that id attribute.
+  - Contents within the feed quest should be focusable via keyboards (add `tabindex="0"`) and the appropriate `aria-role`.
+- Icon-only buttons should have `aria-labels` if there are no accompanying labels
