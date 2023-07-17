@@ -4,13 +4,13 @@
 
 ### What are the core features to be supported?
 
-- Privileges
+- **Privileges**
   - Browse Available privileges and received privileges.
   - Ability to achieve a privilege by completing a quest.
-- Quests
+- **Quests**
   - Browse quests feed containing quests by the brand. (Only this feature will be covered in this document since it's the most complex one.)
   - Joining and submitting a quest.
-- Show points.
+- **Show points/rewards**
 
 ### What kind of quests are supported?
 
@@ -38,11 +38,11 @@ import Image from 'next/image'
 
 ### Component Responsibilities
 
-- Server: Provides HTTP APIs to fetch feed quests.
-- Controller: Controls the flow of data within the application and makes network requests to the server.
-- Client Store: Stores data needed across the whole application. In the context of a quests feed, most of the data in the store will be server-originated data needed by the feed UI.
-- Feed UI: Contains a list of feed quests.
-  - Feed quest: Presents the data for a feed quest and contains button to interact with the quest (Join/Resume).
+- **Server**: Provides HTTP APIs to fetch feed quests.
+- **Controller**: Controls the flow of data within the application and makes network requests to the server.
+- **Client Store**: Stores data needed across the whole application. In the context of a quests feed, most of the data in the store will be server-originated data needed by the feed UI.
+- **Feed UI**: Contains a list of feed quests.
+  - **Feed quest**: Presents the data for a feed quest and contains button to interact with the quest (Join/Resume).
 
 ## Data Model
 
@@ -70,6 +70,8 @@ The benefits of having a normalized store are:
 
 - Reduce duplicated data and have a source of truth for the same piece of data that could be presented in multiple instances on the UI. E.g. if quests have some info about the owner, we're storing duplicated data for the owner field in the client store.
 - Easily update all data for the same entity. In the scenario that the feed quest contains many quests authored by the owner and the owner changes their name, it'd be good to be able to immediately reflect the updated owner name in the quests. This will be easier to do with a normalized store than a store that just stores the server response as is in a nested structure.
+
+It can be implemented using [redux](https://redux.js.org/usage/structuring-reducers/normalizing-state-shape) or [relay](https://relay.dev/)
 
 In the context of this product, we don't really need to use a normalized store because:
 
@@ -107,7 +109,7 @@ An offset-based pagination API accepts the following parameters:
 | `size`    | number | Number of results per page |
 | `page`    | number | Page number to fetch       |
 
-Advantage:
+**Advantages**:
 
 Offset-based pagination has the following advantages:
 
@@ -115,7 +117,7 @@ Offset-based pagination has the following advantages:
 - Easy to see the total number of pages.
 - Easy to implement on the back end.
 
-Drawback:
+**Drawbacks**:
 
 - For data that updates frequently, the current page window might be inaccurate after some time.
 - cannot change the page size for subsequent queries
@@ -129,11 +131,11 @@ A cursor-based pagination API accepts the following parameters:
 | `size`    | number | Number of results per page                                                                  |
 | `cursor`  | string | An identifier for the last item fetched. The database will know to continue from this item. |
 
-Advantage:
+**Advantages**:
 
 - Avoids the inaccurate page window problem because new quests added over time do not affect the offset, which is determined by a fixed cursor
 
-Drawback:
+**Drawbacks**:
 
 - It's not possible to jump to specific pages with cursors.
 
@@ -145,13 +147,13 @@ Cursor-based pagination is clearly superior to offset-based pagination and it's 
 
 #### Rendering Approach
 
-- Server-side rendering (SSR): Rendering the HTML on the server side, which is the most traditional way. Best for static content that require SEO and does not require heavy user interaction. Websites like blogs, documentation sites, e-commerce websites are built using SSR.
-- Client-side rendering (CSR): Rendering in the browser, by dynamically adding DOM elements into the page using JavaScript. Best for interactive content. Applications like dashboards, chat apps are built using CSR.
-- Hybrid rendering: A combination of SSR and CSR. Best for content that requires SEO and heavy user interaction. Applications like social media feeds, e-commerce product pages are built using hybrid rendering.
+- **Server-side rendering (SSR)**: Rendering the HTML on the server side, which is the most traditional way. Best for static content that require SEO and does not require heavy user interaction. Websites like blogs, documentation sites, e-commerce websites are built using SSR.
+- **Client-side rendering (CSR)**: Rendering in the browser, by dynamically adding DOM elements into the page using JavaScript. Best for interactive content. Applications like dashboards, chat apps are built using CSR.
+- **Hybrid rendering**: A combination of SSR and CSR. Best for content that requires SEO and heavy user interaction. Applications like social media feeds, e-commerce product pages are built using hybrid rendering.
 
 For this quest feed application, there's a good amount of static content but they also require some level of interaction. So, using a hybrid approach will give the best of both worlds: a fast initial load with SSR then hydrating the page to enable interactions. Subsequent content (e.g. more quests added once the user reaches the end of their feed) will be rendered via CSR.
 
-This can be achieved by using a hybrid framework like Next.js, which supports both SSR and CSR.
+This can be achieved by using a hybrid framework like [Next.js](https://nextjs.org/), which supports both SSR and CSR.
 
 #### Infinite Scrolling
 
@@ -166,7 +168,7 @@ A dynamic distance can be calculated based on the network connection speed and h
 In both approaches, we add a marker element that is rendered at the bottom of the feed.
 
 - Add a `scroll` event listener (ideally debounced) to the page or a timer (via `setInterval`) that checks whether the position of the marker element is within a certain threshold from the bottom of the page. The position of the marker element can be obtained using `Element.getBoundingClientRect`.
-- Use the **Intersection Observer API** to monitor when the marker element is entering or exiting another element or intersecting by a specified amount.
+- Use the [Intersection Observer API](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API) to monitor when the marker element is entering or exiting another element or intersecting by a specified amount.
 
 #### Virtualized Lists
 

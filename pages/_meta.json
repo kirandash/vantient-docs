@@ -1,14 +1,9 @@
 {
   "index": "Introduction",
-  "cmty-system-design": "CMTY System Design",
-  "about": {
-    "title": "About",
-    "type": "page"
-  },
   "contact": {
     "title": "Contact ↗",
     "type": "page",
-    "href": "https://twitter.com/kirankdash",
+    "href": "https://www.vantient.io/",
     "newWindow": true
   }
 }

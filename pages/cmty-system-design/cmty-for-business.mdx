@@ -4,7 +4,7 @@
 
 ### What are the core features to be supported?
 
-- Quests
+- **Quests**
   - Creating and publishing new quests. (Only this feature will be explored in this document as it is the most complex feature.)
   - View and modify quests created by business.
 
@@ -34,12 +34,12 @@ import Image from 'next/image'
 
 ### Component Responsibilities
 
-- Server: Provides HTTP APIs to fetch feed quests.
-- Controller: Controls the flow of data within the application and makes network requests to the server.
-- Client Store: Stores data needed across the whole application. In the context of a quests feed, most of the data in the store will be server-originated data needed by the feed UI.
-- Feed UI: Contains a list of feed quests.
-  - Feed quest: Presents the data for a feed quest and contains button to interact with the quest (Edit/Delete).
-  - Quest Composer: Editor/Form for business to create new quest.
+- **Server**: Provides HTTP APIs to fetch feed quests.
+- **Controller**: Controls the flow of data within the application and makes network requests to the server.
+- **Client Store**: Stores data needed across the whole application. In the context of a quests feed, most of the data in the store will be server-originated data needed by the feed UI.
+- **Feed UI**: Contains a list of feed quests.
+  - **Feed quest**: Presents the data for a feed quest and contains button to interact with the quest (Edit/Delete).
+  - **Quest Composer**: Editor/Form for business to create new quest.
 
 ## Data Model
 
