@@ -1,0 +1,98 @@
+# CMTY for Business
+
+## Requirements Exploration
+
+### What are the core features to be supported?
+
+- Quests
+  - Creating and publishing new quests.
+  - View and modify quests created by business.
+
+### What kind of quests are supported?
+
+Primarily text and image-based quests. But possible to support other types of quests (video or GIF) in the future.
+
+### What pagination UX should be used for the feed?
+
+Infinite scrolling, meaning more quests will be added when the user reaches the end of their feed.
+
+### Will the application be used on mobile devices?
+
+Yes, the application will be used on mobile devices. The application will be a web application, so it will be responsive.
+
+## Architecture/High-level Design
+
+import Image from 'next/image'
+
+<Image
+  src="/assets/images/quest-feed-business-hld.jpg"
+  alt="Image Carousel HLD"
+  width={600}
+  height={600}
+  style={{ marginTop: 20 }}
+/>
+
+### Component Responsibilities
+
+- Server: Provides HTTP APIs to fetch feed quests.
+- Controller: Controls the flow of data within the application and makes network requests to the server.
+- Client Store: Stores data needed across the whole application. In the context of a quests feed, most of the data in the store will be server-originated data needed by the feed UI.
+- Feed UI: Contains a list of feed quests.
+  - Feed quest: Presents the data for a feed quest and contains button to interact with the quest (Edit/Delete).
+  - Quest Composer: Editor/Form for business to create new quest.
+
+## Data Model
+
+A quest feed shows a list of quests fetched from the server, hence most of the data involved in this application will be server-originated data.
+
+| Entity     | Source              | Belongs To        | Fields                                                                                                       |
+| :--------- | :------------------ | :---------------- | :----------------------------------------------------------------------------------------------------------- |
+| `Feed`     | Server              | Feed UI           | `quests` (list of `Quests`), pagination (pagination metadata)                                                |
+| `Quest`    | Server              | Feed Quest        | `_k` or `id`, `startsAt`, `title`, `coverImageUrl` (for quests containing images), `submitted`, `answerList` |
+| `Owner`    | Server              | Client Store      | `ownerKey`, `name`, `profile_photo_url`, `balance`, `coinKey`                                                |
+| `NewQuest` | User Input (Client) | Quest Composer UI | `title`, `questionList`, `coverImageUrl`, `startsAt`                                                         |
+
+## Interface Definition (API)
+
+| Source         | Destination | API Type   | Functionality             |
+| :------------- | :---------- | :--------- | :------------------------ |
+| Server         | Controller  | HTTP       | Fetch feed quests         |
+| Controller     | Feed UI     | JavaScript | Transfer feed quests data |
+| Controller     | Server      | HTTP       | Create new quest          |
+| Quest Composer | Controller  | JavaScript | Transfer new quest data   |
+
+## Optimizations and Deep Dive
+
+### Feed Composer Optimizations
+
+#### Lazy Loading Dependencies
+
+Businesses can draft quests in many different formats which require specialized rendering code per format. Lazy loading and can be used to load the resources for the desired formats and optional features in an on-demand fashion.
+
+Non-crucial features that can be lazy loaded on demand:
+
+- Image uploader
+- GIF picker
+- Emoji picker
+- Sticker picker
+- Cover images
+- Video Uploader
+
+#### How to render rich text?
+
+- `<input>`s and `<textarea>`s only allows input and display of plain text. The `contenteditable` attribute turns an element into an editable rich text editor.
+- However, it is not a good idea to use contenteditable="true" as-is in production because it comes with many issues.
+- It'd be better to use battle-tested rich text editor libraries. Ex: [Draft.js](https://draftjs.org/) and [Lexical](https://lexical.dev/) for drafting quests.
+
+#### Accessibility
+
+- Contents within the feed quest composer should be focusable via keyboards (add `tabindex="0"`) and the appropriate `aria-role`.
+- Icon-only buttons should have `aria-labels` if there are no accompanying labels
+
+#### Optimistic Updates
+
+Optimistic update is a performance technique where the client immediately reflect the updated state after a user interaction that hits the server and optimistically assume that the server request succeeds, which should be the case for most requests. This gives users instant feedback and improves the perceived performance. If the server request fails, we can revert the UI changes and display an error message.
+
+For a quest composer, optimistic updates can be applied for the submit button by immediately showing the quest in list of quests.
+
+Optimistic updates is a powerful feature built into modern query libraries like [Relay](https://relay.dev/docs/guided-tour/updating-data/graphql-mutations/#optimistic-updates), [SWR](https://swr.vercel.app/docs/mutation#optimistic-updates) and [React Query](https://tanstack.com/query/v4/docs/react/guides/optimistic-updates).
